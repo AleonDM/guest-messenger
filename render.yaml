@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: guest-messenger
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: cd server && npm install && node server.js
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/server
+      sizeGB: 1 
