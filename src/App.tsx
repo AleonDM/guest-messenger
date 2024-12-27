@@ -7,6 +7,29 @@ interface UserProfile {
   avatar?: string;
 }
 
+interface IChat {
+  id: number;
+  name: string;
+  avatar?: string;
+  messages: Message[];
+  createdBy: number;
+}
+
+interface Message {
+  id: string;
+  text: string;
+  image?: string;
+  file?: {
+    url: string;
+    name: string;
+    size: number;
+    type: string;
+  };
+  nickname: string;
+  avatar?: string;
+  timestamp: string;
+}
+
 // SVG иконки
 const SendIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -22,7 +45,7 @@ const SettingsIcon = () => (
 
 const AddIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor"/>
+    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2h-2v6h-6v-2h-2v2h-6V13h6v2z" fill="currentColor"/>
   </svg>
 );
 
@@ -32,16 +55,9 @@ const SaveIcon = () => (
   </svg>
 );
 
-const MessengerIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H6L4 18V4H20V16Z" fill="currentColor"/>
-    <path d="M6 9H18V11H6V9ZM6 6H18V8H6V6ZM6 12H15V14H6V12Z" fill="currentColor"/>
-  </svg>
-);
-
 const ImageIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="currentColor"/>
+    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5-7l-3 3.72L9 13l-3 4h12l-4-5z" fill="currentColor"/>
   </svg>
 );
 
@@ -57,29 +73,134 @@ const LockIcon = () => (
   </svg>
 );
 
+const FileIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" fill="currentColor"/>
+  </svg>
+);
+
+const AttachmentIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" fill="currentColor"/>
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" fill="currentColor"/>
+  </svg>
+);
+
+// Функция для формирования полного URL изображения
+const getFullImageUrl = (imageUrl: string) => {
+  if (!imageUrl) return '';
+  if (imageUrl.startsWith('data:')) return imageUrl;
+  if (imageUrl.startsWith('http')) return imageUrl;
+  
+  const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3005';
+  const path = imageUrl.replace(/^\/api/, ''); // Убираем /api из начала пути
+  return `${baseUrl}${path}`;
+};
+
+const Message = ({ message, isOwn }: { message: Message; isOwn: boolean }) => {
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('ru-RU', { 
+      hour: '2-digit', 
+      minute: '2-digit'
+    });
+  };
+
+  return (
+    <div className={`message ${isOwn ? 'message-own' : ''}`}>
+      {!isOwn && (
+        <div className="avatar-message">
+          {message.avatar ? (
+            <img src={message.avatar} alt={message.nickname} />
+          ) : (
+            <div className="avatar-placeholder-message">
+              {message.nickname[0].toUpperCase()}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="message-content">
+        <div className="message-header">
+          <span className="message-nickname">{message.nickname}</span>
+          <span className="message-time">{formatTime(message.timestamp)}</span>
+        </div>
+        <div className="message-text">{message.text}</div>
+        {message.image && (
+          <div className="message-image-container">
+            <img 
+              src={getFullImageUrl(message.image)} 
+              alt="Изображение" 
+              className="message-image" 
+            />
+          </div>
+        )}
+        {message.file && (
+          <a 
+            href={getFullImageUrl(message.file.url)} 
+            download 
+            className="message-file"
+          >
+            <FileIcon />
+            <div className="file-info">
+              <span className="file-name">{message.file.name}</span>
+              <span className="file-size">{formatFileSize(message.file.size)}</span>
+            </div>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState('');
-  const [avatar, setAvatar] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [chats, setChats] = useState<ChatType[]>([]);
-  const [currentChat, setCurrentChat] = useState<ChatType | null>(null);
-  const [newMessage, setNewMessage] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const [chats, setChats] = useState<IChat[]>([]);
+  const [currentChat, setCurrentChat] = useState<IChat | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showNewChatForm, setShowNewChatForm] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
   const [newChatName, setNewChatName] = useState('');
-  const [newChatAvatar, setNewChatAvatar] = useState<string>('');
-  const [isNicknameSet, setIsNicknameSet] = useState(false);
-
+  const [newChatAvatar, setNewChatAvatar] = useState('');
+  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatAvatarInputRef = useRef<HTMLInputElement>(null);
-  const messageContainerRef = useRef<HTMLDivElement>(null);
-  const messageImageInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const newChatAvatarInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [showChatSettings, setShowChatSettings] = useState(false);
+  const [editingChatName, setEditingChatName] = useState('');
+  const [editingChatAvatar, setEditingChatAvatar] = useState<File | null>(null);
+
+  const handleLogout = () => {
+    // Очищаем состояние приложения
+    setIsAuthenticated(false);
+    setUsername('');
+    setPassword('');
+    setNickname('');
+    setAvatar('');
+    setChats([]);
+    setCurrentChat(null);
+    setShowSettings(false);
+    setShowNewChat(false);
+    setIsAttachMenuOpen(false);
+    
+    // Вызываем метод выхода из API
+    api.logout();
+    
+    // Очищаем локальное хранилище
+    localStorage.removeItem('token');
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -95,15 +216,14 @@ export function App() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (messageContainerRef.current) {
-      messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
     }
   }, [currentChat?.messages]);
 
   const loadUserData = async () => {
     try {
       const response = await api.getCurrentUser();
-      setCurrentUser(response.user);
       setIsAuthenticated(true);
     } catch (error) {
       localStorage.removeItem('token');
@@ -121,46 +241,30 @@ export function App() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
+    
     try {
       if (isRegistering) {
-        if (password !== confirmPassword) {
-          setError('Пароли не совпадают');
-          return;
-        }
-
-        const response = await api.register({
+        await api.register({
           username,
           password,
           nickname,
           avatar
         });
-        setCurrentUser(response.user);
       } else {
-        const response = await api.login({
+        await api.login({
           username,
           password
         });
-        setCurrentUser(response.user);
       }
 
       setIsAuthenticated(true);
       setUsername('');
       setPassword('');
-      setConfirmPassword('');
       setNickname('');
+      setAvatar('');
     } catch (error) {
-      setError(error.message);
+      console.error('Ошибка аутентификации:', error);
     }
-  };
-
-  const handleLogout = () => {
-    api.logout();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    setChats([]);
-    setCurrentChat(null);
   };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,22 +279,7 @@ export function App() {
   };
 
   const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleChatAvatarClick = () => {
-    chatAvatarInputRef.current?.click();
-  };
-
-  const handleChatAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewChatAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+    avatarInputRef.current?.click();
   };
 
   const saveProfile = (newNickname: string, newAvatar?: string) => {
@@ -205,41 +294,13 @@ export function App() {
     e.preventDefault();
     if (nickname.trim()) {
       saveProfile(nickname.trim());
-      setIsNicknameSet(true);
       setShowSettings(false);
-    }
-  };
-
-  const handleMessageImageClick = () => {
-    messageImageInputRef.current?.click();
-  };
-
-  const handleMessageImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && currentChat?.id) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const updatedChat = await api.sendMessage(currentChat.id, {
-            text: newMessage.trim(),
-            image: reader.result as string
-          });
-          setChats(chats.map(chat => 
-            chat.id === currentChat.id ? updatedChat : chat
-          ));
-          setCurrentChat(updatedChat);
-          setNewMessage('');
-        } catch (error) {
-          console.error('Ошибка при отправке изображения:', error);
-        }
-      };
-      reader.readAsDataURL(file);
     }
   };
 
   const handleMessageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newMessage.trim() && currentChat?.id) {
+    if (currentChat?.id && newMessage.trim()) {
       try {
         const updatedChat = await api.sendMessage(currentChat.id, {
           text: newMessage.trim()
@@ -267,10 +328,117 @@ export function App() {
         setCurrentChat(newChat);
         setNewChatName('');
         setNewChatAvatar('');
-        setShowNewChatForm(false);
+        setShowNewChat(false);
       } catch (error) {
         console.error('Ошибка при создании чата:', error);
       }
+    }
+  };
+
+  const handleNewChatAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewChatAvatar(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && currentChat?.id) {
+      try {
+        const updatedChat = await api.sendMessage(currentChat.id, {
+          file: file
+        });
+        setChats(chats.map(chat => 
+          chat.id === currentChat.id ? updatedChat : chat
+        ));
+        setCurrentChat(updatedChat);
+        setIsAttachMenuOpen(false);
+      } catch (error) {
+        console.error('Ошибка при отправке файла:', error);
+      }
+    }
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && currentChat?.id) {
+      try {
+        const updatedChat = await api.sendMessage(currentChat.id, {
+          image: file
+        });
+        setChats(chats.map(chat => 
+          chat.id === currentChat.id ? updatedChat : chat
+        ));
+        setCurrentChat(updatedChat);
+        setIsAttachMenuOpen(false);
+      } catch (error) {
+        console.error('Ошибка при отправке изображения:', error);
+      }
+    }
+  };
+
+  const toggleAttachMenu = () => {
+    setIsAttachMenuOpen(!isAttachMenuOpen);
+  };
+
+  const handleChatUpdate = async () => {
+    if (!currentChat) return;
+
+    try {
+      const formData = new FormData();
+      
+      // Добавляем новое имя чата, если оно изменилось
+      if (editingChatName !== currentChat.name) {
+        formData.append('name', editingChatName);
+      }
+      
+      // Добавляем новый аватар, если он был выбран
+      if (editingChatAvatar) {
+        formData.append('avatar', editingChatAvatar);
+      }
+
+      const updatedChat = await api.updateChat(currentChat.id, formData);
+      
+      // Обновляем список чатов и текущий чат
+      setChats(chats.map(chat => 
+        chat.id === currentChat.id ? updatedChat : chat
+      ));
+      setCurrentChat(updatedChat);
+      
+      // Закрываем модальное окно настроек
+      setShowChatSettings(false);
+      
+      // Сбрасываем состояние редактирования
+      setEditingChatAvatar(null);
+    } catch (error) {
+      console.error('Error updating chat:', error);
+    }
+  };
+
+  const handleChatDelete = async () => {
+    if (!currentChat) return;
+
+    if (window.confirm('Вы уверены, что хотите удалить этот чат?')) {
+      try {
+        await api.deleteChat(currentChat.id);
+        setChats(chats.filter(chat => chat.id !== currentChat.id));
+        setCurrentChat(null);
+        setShowChatSettings(false);
+      } catch (error) {
+        console.error('Error deleting chat:', error);
+      }
+    }
+  };
+
+  const handleChatAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setEditingChatAvatar(file);
     }
   };
 
@@ -279,7 +447,6 @@ export function App() {
       <div className="App">
         <div className="auth-container">
           <h1>{isRegistering ? 'Регистрация' : 'Вход'}</h1>
-          {error && <div className="error-message">{error}</div>}
           <form onSubmit={handleAuth} className="auth-form">
             <div className="form-group">
               <div className="input-icon">
@@ -309,18 +476,6 @@ export function App() {
               <>
                 <div className="form-group">
                   <div className="input-icon">
-                    <LockIcon />
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Подтвердите пароль"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <div className="input-icon">
                     <UserIcon />
                     <input
                       type="text"
@@ -331,7 +486,7 @@ export function App() {
                     />
                   </div>
                 </div>
-                <div className="avatar-upload" onClick={() => fileInputRef.current?.click()}>
+                <div className="avatar-upload" onClick={handleAvatarClick}>
                   {avatar ? (
                     <img src={avatar} alt="Аватар" className="avatar-preview" />
                   ) : (
@@ -341,7 +496,7 @@ export function App() {
                   )}
                   <input
                     type="file"
-                    ref={fileInputRef}
+                    ref={avatarInputRef}
                     onChange={handleAvatarChange}
                     accept="image/*"
                     style={{ display: 'none' }}
@@ -371,16 +526,16 @@ export function App() {
           <h2>Чаты</h2>
           <button 
             className="add-chat-button"
-            onClick={() => setShowNewChatForm(!showNewChatForm)}
+            onClick={() => setShowNewChat(!showNewChat)}
             aria-label="Создать чат"
           >
             <AddIcon />
           </button>
         </div>
 
-        {showNewChatForm && (
+        {showNewChat && (
           <div className="new-chat-form">
-            <div className="avatar-upload" onClick={handleChatAvatarClick}>
+            <div className="avatar-upload" onClick={() => newChatAvatarInputRef.current?.click()}>
               {newChatAvatar ? (
                 <img src={newChatAvatar} alt="Аватар чата" className="avatar-preview" />
               ) : (
@@ -390,13 +545,13 @@ export function App() {
               )}
               <input
                 type="file"
-                ref={chatAvatarInputRef}
-                onChange={handleChatAvatarChange}
+                ref={newChatAvatarInputRef}
+                onChange={handleNewChatAvatarChange}
                 accept="image/*"
                 style={{ display: 'none' }}
               />
             </div>
-            <form onSubmit={handleCreateChat}>
+            <form onSubmit={handleCreateChat} className="new-chat-form">
               <input
                 type="text"
                 value={newChatName}
@@ -423,7 +578,7 @@ export function App() {
                 <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
               ) : (
                 <div className="chat-avatar-placeholder">
-                  {chat.name[0].toUpperCase()}
+                  {chat.name && chat.name.length > 0 ? chat.name[0].toUpperCase() : '?'}
                 </div>
               )}
               <span className="chat-name">{chat.name}</span>
@@ -436,17 +591,117 @@ export function App() {
       </div>
 
       <div className="main-content">
-        <div className="top-bar">
-          <div className="messenger-icon">
-            <MessengerIcon />
-          </div>
-          <button 
-            className="settings-button"
-            onClick={() => setShowSettings(!showSettings)}
-            aria-label="Настройки"
-          >
-            <SettingsIcon />
-          </button>
+        <div className="current-chat">
+          {currentChat ? (
+            <>
+              <div className="current-chat-header">
+                <div className="chat-info">
+                  <div className="chat-avatar">
+                    {currentChat.avatar ? (
+                      <img src={currentChat.avatar} alt={`${currentChat.name} avatar`} />
+                    ) : (
+                      <span>{currentChat.name && currentChat.name.length > 0 ? currentChat.name[0].toUpperCase() : '?'}</span>
+                    )}
+                  </div>
+                  <h2>{currentChat.name}</h2>
+                </div>
+                <div className="header-buttons">
+                  <button 
+                    className="settings-button"
+                    onClick={() => setShowSettings(!showSettings)}
+                    aria-label="Настройки"
+                  >
+                    <SettingsIcon />
+                  </button>
+                  <button 
+                    className="logout-button"
+                    onClick={handleLogout}
+                    aria-label="Выход"
+                  >
+                    <LogoutIcon />
+                  </button>
+                  {currentChat && (
+                    <button
+                      className="icon-button"
+                      onClick={() => {
+                        setEditingChatName(currentChat.name);
+                        setShowChatSettings(true);
+                      }}
+                    >
+                      <SettingsIcon />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="message-container" ref={messagesEndRef}>
+                {currentChat.messages.map(message => (
+                  <Message 
+                    key={message.id} 
+                    message={message} 
+                    isOwn={message.nickname === nickname} 
+                  />
+                ))}
+              </div>
+
+              <div className="bottom-bar">
+                <div className="input-container">
+                  <button
+                    type="button"
+                    className="attach-button"
+                    onClick={() => setIsAttachMenuOpen(!isAttachMenuOpen)}
+                    aria-label="Прикрепить файл"
+                  >
+                    <AttachmentIcon />
+                    {isAttachMenuOpen && (
+                      <div className="attach-menu">
+                        <button onClick={() => imageInputRef.current?.click()}>
+                          <ImageIcon /> Изображение
+                        </button>
+                        <button onClick={() => fileInputRef.current?.click()}>
+                          <FileIcon /> Файл
+                        </button>
+                      </div>
+                    )}
+                  </button>
+                  <form onSubmit={handleMessageSubmit} className="message-form">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      placeholder="Введите сообщение..."
+                      className="message-input"
+                    />
+                    <button 
+                      type="submit" 
+                      className="send-button" 
+                      disabled={!newMessage.trim()}
+                      aria-label="Отправить сообщение"
+                    >
+                      <SendIcon />
+                    </button>
+                  </form>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    style={{ display: 'none' }}
+                  />
+                  <input
+                    type="file"
+                    ref={imageInputRef}
+                    onChange={handleImageChange}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="no-chat-selected">
+              <h2>Выберите чат для начала общения</h2>
+            </div>
+          )}
         </div>
 
         {showSettings && (
@@ -462,13 +717,13 @@ export function App() {
               )}
               <input
                 type="file"
-                ref={fileInputRef}
+                ref={avatarInputRef}
                 onChange={handleAvatarChange}
                 accept="image/*"
                 style={{ display: 'none' }}
               />
             </div>
-            <form onSubmit={handleNicknameSubmit} className="nickname-form">
+            <form onSubmit={handleNicknameSubmit} className="profile-form">
               <input
                 type="text"
                 value={nickname}
@@ -477,95 +732,73 @@ export function App() {
                 className="nickname-input"
                 maxLength={20}
               />
-              <button type="submit" className="save-button" aria-label="Сохранить">
+              <button type="submit" className="save-button">
                 <SaveIcon />
               </button>
             </form>
           </div>
         )}
 
-        {currentChat ? (
-          <>
-            <div className="current-chat-header">
-              {currentChat.avatar ? (
-                <img src={currentChat.avatar} alt={currentChat.name} className="chat-avatar" />
-              ) : (
-                <div className="chat-avatar-placeholder">
-                  {currentChat.name[0].toUpperCase()}
-                </div>
-              )}
-              <h2>{currentChat.name}</h2>
-            </div>
-
-            <div className="message-container" ref={messageContainerRef}>
-              {currentChat.messages.map(message => (
-                <div 
-                  key={message.id} 
-                  className={`message ${message.nickname === nickname ? 'message-own' : ''}`}
-                >
-                  <div className="message-header">
-                    <div className="message-user-info">
-                      {message.avatar ? (
-                        <img src={message.avatar} alt="Аватар" className="avatar-message" />
-                      ) : (
-                        <div className="avatar-placeholder-message">
-                          {message.nickname[0].toUpperCase()}
-                        </div>
-                      )}
-                      <span className="message-nickname">{message.nickname}</span>
-                    </div>
-                    <span className="message-time">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  {message.image && (
-                    <div className="message-image-container">
-                      <img src={message.image} alt="Изображение" className="message-image" />
+        {showChatSettings && currentChat && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <h2>Настройки чата</h2>
+              <div className="chat-settings">
+                <div className="avatar-upload" onClick={() => document.getElementById('chatAvatarInput')?.click()}>
+                  {(editingChatAvatar || currentChat.avatar) ? (
+                    <img
+                      src={editingChatAvatar ? URL.createObjectURL(editingChatAvatar) : currentChat.avatar}
+                      alt="Аватар чата"
+                      className="avatar-preview"
+                    />
+                  ) : (
+                    <div className="avatar-placeholder">
+                      Изменить аватар
                     </div>
                   )}
-                  {message.text && <div className="message-text">{message.text}</div>}
-                </div>
-              ))}
-            </div>
-
-            <div className="bottom-bar">
-              <div className="input-container">
-                <form onSubmit={handleMessageSubmit} className="message-form">
                   <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Введите сообщение..."
-                    className="message-input"
-                  />
-                  <button 
-                    type="button" 
-                    className="image-button"
-                    onClick={handleMessageImageClick}
-                    aria-label="Добавить изображение"
-                  >
-                    <ImageIcon />
-                  </button>
-                  <input
+                    id="chatAvatarInput"
                     type="file"
-                    ref={messageImageInputRef}
-                    onChange={handleMessageImageChange}
                     accept="image/*"
+                    onChange={handleChatAvatarChange}
                     style={{ display: 'none' }}
                   />
-                  <button type="submit" className="send-button" aria-label="Отправит�� сообщение">
-                    <SendIcon />
+                </div>
+                <input
+                  type="text"
+                  value={editingChatName}
+                  onChange={(e) => setEditingChatName(e.target.value)}
+                  placeholder="Название чата"
+                  className="input"
+                />
+                <div className="modal-buttons">
+                  <button className="button" onClick={handleChatUpdate}>
+                    Сохранить
                   </button>
-                </form>
+                  <button className="button button-danger" onClick={handleChatDelete}>
+                    Удалить чат
+                  </button>
+                  <button className="button button-secondary" onClick={() => setShowChatSettings(false)}>
+                    Отмена
+                  </button>
+                </div>
               </div>
             </div>
-          </>
-        ) : (
-          <div className="no-chat-selected">
-            <h2>Выберите чат или создайте новый</h2>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) {
+    return `${size} байт`;
+  } else if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(2)} КБ`;
+  } else if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(2)} МБ`;
+  } else {
+    return `${(size / (1024 * 1024 * 1024)).toFixed(2)} ГБ`;
+  }
 }

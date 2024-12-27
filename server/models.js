@@ -43,8 +43,19 @@ const Message = sequelize.define('Message', {
     allowNull: true
   },
   image: {
-    type: DataTypes.TEXT,
+    type: DataTypes.STRING,
     allowNull: true
+  },
+  file: {
+    type: DataTypes.TEXT, 
+    allowNull: true,
+    get() {
+      const rawValue = this.getDataValue('file');
+      return rawValue ? JSON.parse(rawValue) : null;
+    },
+    set(value) {
+      this.setDataValue('file', value ? JSON.stringify(value) : null);
+    }
   },
   timestamp: {
     type: DataTypes.DATE,
@@ -52,7 +63,6 @@ const Message = sequelize.define('Message', {
   }
 });
 
-// Определяем связи
 User.hasMany(Chat, { as: 'createdChats', foreignKey: 'createdBy' });
 Chat.belongsTo(User, { as: 'creator', foreignKey: 'createdBy' });
 
@@ -79,4 +89,4 @@ module.exports = {
   Chat,
   Message,
   initDatabase
-}; 
+};

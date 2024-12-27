@@ -6,12 +6,18 @@ export interface User {
 }
 
 export interface Message {
-  id: number;
-  text: string;
+  id: string;
+  text?: string;
   image?: string;
-  timestamp: string;
+  file?: {
+    url: string;
+    name: string;
+    size: number;
+    type: string;
+  };
   nickname: string;
   avatar?: string;
+  timestamp: number;
 }
 
 export interface Chat {
@@ -27,17 +33,13 @@ interface CreateChatData {
   avatar?: string;
 }
 
-interface MessageData {
-  text?: string;
-  image?: string;
-}
-
 class Api {
   private baseUrl: string;
   private token: string | null;
 
   constructor() {
-    this.baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+    const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:3005';
+    this.baseUrl = `${baseUrl}/api`;
     this.token = localStorage.getItem('token');
   }
 
@@ -87,7 +89,10 @@ class Api {
     return data;
   }
 
-  logout() {
+  async logout() {
+    await this.request('/logout', {
+      method: 'POST'
+    });
     this.token = null;
     localStorage.removeItem('token');
   }
@@ -110,14 +115,51 @@ class Api {
     return await this.request('/chats');
   }
 
-  async sendMessage(chatId: number, messageData: MessageData) {
-    return await this.request(`/chats/${chatId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(messageData)
+  async updateChat(chatId: number, formData: FormData) {
+    return await this.request(`/chats/${chatId}`, {
+      method: 'PATCH',
+      body: formData
     });
+  }
+
+  async deleteChat(chatId: number) {
+    return await this.request(`/chats/${chatId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  async sendMessage(chatId: number, message: { 
+    text?: string; 
+    image?: string | File; 
+    file?: File;
+  }) {
+    const formData = new FormData();
+    
+    if (message.text) {
+      formData.append('text', message.text);
+    }
+    
+    if (message.image) {
+      if (message.image instanceof File) {
+        formData.append('image', message.image);
+      } else {
+        // Конвертируем base64 в файл
+        const response = await fetch(message.image);
+        const blob = await response.blob();
+        formData.append('image', blob, 'image.jpg');
+      }
+    }
+    
+    if (message.file) {
+      formData.append('file', message.file);
+    }
+
+    const response = await this.request(`/chats/${chatId}/messages`, {
+      method: 'POST',
+      body: formData
+    });
+
+    return response;
   }
 }
 

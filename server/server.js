@@ -1,21 +1,49 @@
+require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const path = require('path');
 const { User, Chat, Message, initDatabase } = require('./models');
-require('dotenv').config();
+const multer = require('multer');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 
-// Middleware
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join(__dirname, 'uploads');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  fileFilter: (req, file, cb) => {
+    // Проверяем тип файла
+    if (file.fieldname === 'image') {
+      if (!file.mimetype.startsWith('image/')) {
+        return cb(new Error('Разрешены только изображения!'), false);
+      }
+    }
+    cb(null, true);
+  },
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50 MB
+  }
+});
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../build')));
-
-// Middleware для проверки авторизации
 const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization').replace('Bearer ', '');
@@ -216,31 +244,20 @@ app.get('/api/chats', auth, async (req, res) => {
   }
 });
 
-app.post('/api/chats/:chatId/messages', auth, async (req, res) => {
+app.post('/api/chats/:chatId/messages', auth, upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'file', maxCount: 1 }
+]), async (req, res) => {
   try {
-    const chat = await Chat.findByPk(req.params.chatId);
-    if (!chat) {
-      return res.status(404).send({ error: 'Чат не найден' });
-    }
+    const chatId = req.params.chatId;
+    const { text } = req.body;
+    const files = req.files || {};
 
-    const { text, image } = req.body;
-    const message = await Message.create({
-      text,
-      image,
-      ChatId: chat.id,
-      senderId: req.user.id,
-      timestamp: new Date()
-    });
+    console.log('Получены файлы:', files);
+    console.log('Тело запроса:', req.body);
 
-    const fullMessage = await Message.findByPk(message.id, {
-      include: [{
-        model: User,
-        as: 'sender',
-        attributes: ['nickname', 'avatar']
-      }]
-    });
-
-    const updatedChat = await Chat.findByPk(chat.id, {
+    // Проверяем существование чата
+    const chat = await Chat.findByPk(chatId, {
       include: [
         {
           model: Message,
@@ -258,35 +275,98 @@ app.post('/api/chats/:chatId/messages', auth, async (req, res) => {
       ]
     });
 
-    res.status(201).send({
-      id: updatedChat.id,
-      name: updatedChat.name,
-      avatar: updatedChat.avatar,
-      messages: updatedChat.Messages.map(msg => ({
+    if (!chat) {
+      return res.status(404).json({ error: 'Чат не найден' });
+    }
+
+    // Создаем сообщение
+    const messageData = {
+      text: text || null,
+      ChatId: chatId,
+      senderId: req.user.id,
+      timestamp: new Date()
+    };
+
+    // Обрабатываем изображение
+    if (files.image && files.image[0]) {
+      const file = files.image[0];
+      console.log('Обработка изображения:', file);
+      messageData.image = `/api/uploads/${file.filename}`;
+      console.log('URL изображения:', messageData.image);
+    }
+
+    // Обрабатываем файл
+    if (files.file && files.file[0]) {
+      const file = files.file[0];
+      console.log('Обработка файла:', file);
+      messageData.file = {
+        url: `/api/uploads/${file.filename}`,
+        name: file.originalname,
+        size: file.size,
+        type: file.mimetype
+      };
+      console.log('Данные файла:', messageData.file);
+    }
+
+    // Сохраняем сообщение
+    const newMessage = await Message.create(messageData);
+    console.log('Создано сообщение:', newMessage.toJSON());
+
+    // Получаем полное сообщение с данными отправителя
+    const fullMessage = await Message.findByPk(newMessage.id, {
+      include: [{
+        model: User,
+        as: 'sender',
+        attributes: ['nickname', 'avatar']
+      }]
+    });
+
+    // Обновляем чат в памяти
+    chat.Messages = [...chat.Messages, fullMessage];
+
+    // Форматируем ответ
+    const response = {
+      id: chat.id,
+      name: chat.name,
+      avatar: chat.avatar,
+      messages: chat.Messages.map(msg => ({
         id: msg.id,
         text: msg.text,
         image: msg.image,
+        file: msg.file,
         timestamp: msg.timestamp,
         nickname: msg.sender.nickname,
         avatar: msg.sender.avatar
       })),
-      createdBy: updatedChat.creator.id
-    });
+      createdBy: chat.creator.id
+    };
+
+    console.log('Отправляем ответ:', response);
+    res.json(response);
   } catch (error) {
-    res.status(400).send({ error: error.message });
+    console.error('Ошибка при отправке сообщения:', error);
+    res.status(500).json({ error: 'Ошибка при отправке сообщения' });
   }
 });
 
-// The "catchall" handler: for any request that doesn't
-// match one above, send back React's index.html file.
+app.post('/api/logout', auth, async (req, res) => {
+  try {
+    res.send({ message: 'Успешный выход из системы' });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+app.use(express.static(path.join(__dirname, '../build')));
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../build/index.html'));
 });
 
 // Инициализация базы данных и запуск сервера
 initDatabase().then(() => {
-  const port = process.env.PORT || 5000;
+  const port = process.env.PORT || 3005;
   app.listen(port, () => {
     console.log(`Сервер запущен на порту ${port}`);
   });
-}); 
+});
